@@ -1,0 +1,17 @@
+using System.Security.Cryptography;
+using System.Text;
+
+namespace BlockChainP33;
+
+public class HashingService
+{
+    public string ComputeBlockHash(Block block)
+    {
+        using var sha256 = SHA256.Create();
+        string rawData = $"{block.Index}{block.TimeStamp}{block.PrevHash}{block.Data}{block.Author}{block.Nonce}";
+        byte[] bytes = Encoding.UTF8.GetBytes(rawData);
+        byte[] hashBytes = sha256.ComputeHash(bytes);
+        // Чистый Base64 (буквы A-Z, a-z, цифры 0-9) без всяких нулей
+        return Convert.ToBase64String(hashBytes);
+    }
+}
