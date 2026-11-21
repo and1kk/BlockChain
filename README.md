@@ -79,3 +79,14 @@
 ![Level 1 - Chain with 5 Event Blocks](03_dz/01_level1_chain_5_events.png)
 ![Level 2 - Blockchain Explorer](03_dz/02_level2_blockchain_explorer.png)
 ![Level 3 - Security Check IsValid and Tampering](03_dz/03_level3_security_isvalid_tamper.png)
+
+---
+
+## ДЗ №4 — Blockchain Audit (`04_dz/`)
+Детальний опис та скріншоти виконання див. у [04_dz/README.md](04_dz/README.md):
+- Реалізовано метод **`AuditBlockchain()`**, який перевіряє `Hash` кожного блоку, `PreviousHash`, валідність усіх транзакцій та відсутність повторних `Transaction Id` у різних блоках.
+- Замість простого `true/false` виводить **номер блоку та конкретну причину проблеми**, а також формує повний звіт (кількість блоків, транзакцій, загальна сума переказів, найактивніший користувач та статус перевірки).
+- Протестовано зміну `Amount` транзакції у блоці `#2` — `AuditBlockchain()` виявляє порушення цілісності.
+
+![Valid Blockchain Audit Report](04_dz/01_audit_valid_blockchain_report.png)
+![Tampered Amount Audit Detection](04_dz/02_audit_tampered_amount_detected.png)

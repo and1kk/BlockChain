@@ -58,6 +58,8 @@ while (running)
     Console.WriteLine("17. [ДЗ #3] Власний Blockchain (5 блоків із транзакціями + Explorer + IsValid)");
     Console.WriteLine("18. [ДЗ #3] Blockchain Explorer (пошук блоку за Index або текстом у транзакціях)");
     Console.WriteLine("19. [ДЗ #3] Перевірка безпеки IsValid() та тест підробки блоку #2");
+    Console.WriteLine("20. [ДЗ #4] Blockchain Audit (повна перевірка + звіт + тест зміни Amount)");
+    Console.WriteLine("21. [ДЗ #4] Запустити AuditBlockchain() для поточного ланцюга");
     Console.WriteLine("0. Вихід");
     Console.Write("Оберіть дію: ");
 
@@ -500,6 +502,82 @@ while (running)
             {
                 Console.WriteLine("Для тесту зміни 2-го блоку додайте хоча б 2 блоки.");
             }
+            break;
+        }
+        case "20":
+        {
+            var auditChain = new BlockChain(3);
+            auditChain.SetMiningMode(blockChainService.GetMiningMode());
+
+            var batch1 = new List<Transactions>
+            {
+                transactionService.CreateTransaction("Alex", "Bob", 500m),
+                transactionService.CreateTransaction("Bob", "Maria", 200m)
+            };
+            var batch2 = new List<Transactions>
+            {
+                transactionService.CreateTransaction("Alex", "Shop", 1250m),
+                transactionService.CreateTransaction("Maria", "Alex", 300m)
+            };
+            var batch3 = new List<Transactions>
+            {
+                transactionService.CreateTransaction("Alex", "Charlie", 450m)
+            };
+            var batch4 = new List<Transactions>
+            {
+                transactionService.CreateTransaction("Charlie", "Dave", 150m),
+                transactionService.CreateTransaction("Alex", "Dave", 100m)
+            };
+
+            auditChain.AddBlock(batch1);
+            auditChain.AddBlock(batch2);
+            auditChain.AddBlock(batch3);
+            auditChain.AddBlock(batch4);
+
+            if (!Console.IsOutputRedirected) Console.Clear();
+            Console.ForegroundColor = ConsoleColor.Magenta;
+            Console.WriteLine("===========================================================================");
+            Console.WriteLine("  ДЗ #4 — BLOCKCHAIN AUDIT: ПЕРЕВІРКА ВАЛІДНОГО ЛАНЦЮГА ТА ЗВІТ");
+            Console.WriteLine("===========================================================================\n");
+            Console.ResetColor();
+
+            displayService.DisplayChain(auditChain);
+            Console.WriteLine();
+            auditChain.AuditBlockchain();
+
+            if (!Console.IsInputRedirected)
+            {
+                Console.Write("\nНатисніть Enter для тесту підробки Amount у блоці #2 та повторного AuditBlockchain()...");
+                Console.ReadLine();
+                if (!Console.IsOutputRedirected) Console.Clear();
+            }
+
+            Console.ForegroundColor = ConsoleColor.Magenta;
+            Console.WriteLine("===========================================================================");
+            Console.WriteLine("  ДЗ #4 — BLOCKCHAIN AUDIT: ТЕСТ ЗМІНИ AMOUNT В УЖЕ СТВОРЕНОМУ БЛОЦІ #2");
+            Console.WriteLine("===========================================================================\n");
+            Console.ResetColor();
+
+            var tamperedTx = auditChain.Chain[2].Transactions[0];
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"[Втручання] Змінюємо Amount транзакції ID #{tamperedTx.Id} у блоці #2:");
+            Console.WriteLine($"  Було:  {tamperedTx.From} -> {tamperedTx.To} | Amount = {tamperedTx.Amount:F2}");
+            tamperedTx.Amount = 999999m;
+            Console.WriteLine($"  Стало: {tamperedTx.From} -> {tamperedTx.To} | Amount = {tamperedTx.Amount:F2}\n");
+            Console.ResetColor();
+
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine("Запуск повторного AuditBlockchain() після підробки Amount:");
+            Console.ResetColor();
+            auditChain.AuditBlockchain();
+
+            Console.WriteLine("\nДеталі пошкодженого блоку #2:");
+            displayService.DisplayBlockDetails(auditChain.Chain[2]);
+            break;
+        }
+        case "21":
+        {
+            blockChainService.AuditBlockchain();
             break;
         }
         case "0":

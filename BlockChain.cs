@@ -358,6 +358,121 @@ public List<Block> SearchTransactionsBySender(string name)
         return valid;
     }
 
+    public bool AuditBlockchain()
+    {
+        var issues = new List<(int BlockIndex, string Reason)>();
+        var seenTransactionIds = new Dictionary<int, int>(); // txId -> first block index
+        var userOperationCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        int totalTransactions = 0;
+        decimal totalTransferAmount = 0m;
+
+        for (int i = 0; i < Chain.Count; i++)
+        {
+            var currentBlock = Chain[i];
+
+            // 1. Перевірка Hash кожного блоку
+            string recalculatedHash = _hashingService.ComputeBlockHash(currentBlock);
+            if (currentBlock.Hash != recalculatedHash)
+            {
+                issues.Add((
+                    currentBlock.Index,
+                    $"Порушення цілісності Hash (збережений: {currentBlock.Hash}, перерахований: {recalculatedHash})"
+                ));
+            }
+
+            // 2. Перевірка правильності PreviousHash (для блоків після Genesis)
+            if (i > 0)
+            {
+                var previousBlock = Chain[i - 1];
+                if (currentBlock.PreviousHash != previousBlock.Hash)
+                {
+                    issues.Add((
+                        currentBlock.Index,
+                        $"Неправильний PreviousHash (вказує на: {currentBlock.PreviousHash}, очікувався Hash блоку #{previousBlock.Index}: {previousBlock.Hash})"
+                    ));
+                }
+            }
+
+            // 3. Перевірка валідності усіх транзакцій та відсутності дублювання Transaction Id
+            foreach (var tx in currentBlock.Transactions)
+            {
+                totalTransactions++;
+                totalTransferAmount += tx.Amount;
+
+                if (!string.IsNullOrWhiteSpace(tx.From))
+                {
+                    userOperationCounts[tx.From] = userOperationCounts.GetValueOrDefault(tx.From) + 1;
+                }
+                if (!string.IsNullOrWhiteSpace(tx.To))
+                {
+                    userOperationCounts[tx.To] = userOperationCounts.GetValueOrDefault(tx.To) + 1;
+                }
+
+                var (txValid, txMessage) = _transactionService.ValidateTransaction(tx);
+                if (!txValid)
+                {
+                    issues.Add((
+                        currentBlock.Index,
+                        $"Невалідна транзакція ID #{tx.Id} ({tx.From} -> {tx.To}, Amount: {tx.Amount}): {txMessage}"
+                    ));
+                }
+
+                if (seenTransactionIds.TryGetValue(tx.Id, out int firstBlockIndex))
+                {
+                    issues.Add((
+                        currentBlock.Index,
+                        $"Дублювання Transaction Id #{tx.Id} (вже використовувався у блоці #{firstBlockIndex})"
+                    ));
+                }
+                else
+                {
+                    seenTransactionIds[tx.Id] = currentBlock.Index;
+                }
+            }
+        }
+
+        string topUserInfo = "Немає операцій";
+        if (userOperationCounts.Count > 0)
+        {
+            var topUser = userOperationCounts.OrderByDescending(kv => kv.Value).First();
+            topUserInfo = $"{topUser.Key} ({topUser.Value} операцій)";
+        }
+
+        bool isValid = issues.Count == 0;
+
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.WriteLine("===========================================================================");
+        Console.WriteLine("                         ЗВІТ BLOCKCHAIN AUDIT");
+        Console.WriteLine("===========================================================================");
+        Console.ResetColor();
+        Console.WriteLine($"  Кількість блоків:                      {Chain.Count}");
+        Console.WriteLine($"  Загальна кількість транзакцій:         {totalTransactions}");
+        Console.WriteLine($"  Загальна сума переказів:               {totalTransferAmount:F2}");
+        Console.WriteLine($"  Найактивніший користувач:              {topUserInfo}");
+
+        if (isValid)
+        {
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine("  Результат перевірки Blockchain:        ВАЛІДНИЙ (порушень не виявлено)");
+            Console.ResetColor();
+        }
+        else
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"  Результат перевірки Blockchain:        ПОШКОДЖЕНИЙ (виявлено порушень: {issues.Count})");
+            Console.WriteLine("\n  Деталі виявлених проблем:");
+            foreach (var (blockIndex, reason) in issues)
+            {
+                Console.WriteLine($"   [!] Блок #{blockIndex}: {reason}");
+            }
+            Console.ResetColor();
+        }
+
+        Console.WriteLine("===========================================================================");
+        return isValid;
+    }
+
     public bool IsChainValid()
     {
         for (int i = 1; i < Chain.Count; i++)
