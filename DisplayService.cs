@@ -8,12 +8,15 @@ public class DisplayService
         Console.WriteLine($"--- Блок #{block.Index} ---");
         Console.ResetColor();
         Console.WriteLine($"Index:        {block.Index}");
-        Console.WriteLine($"Data:         {(string.IsNullOrEmpty(block.Data) ? "[Немає текстової події]" : block.Data)}");
         Console.WriteLine($"Timestamp:    {block.Timestamp:yyyy-MM-dd HH:mm:ss}");
         Console.WriteLine($"PreviousHash: {block.PreviousHash}");
         Console.WriteLine($"Hash:         {block.Hash}");
         Console.WriteLine($"Nonce: {block.Nonce} | Difficulty: {block.DifficultyAtMining} | Duration: {block.MiningDuration:F4} с | Attempts: {block.Attempts}");
-        if (block.Transactions.Count > 0)
+        if (block.Transactions.Count == 0)
+        {
+            Console.WriteLine("Transactions: [Genesis / Немає транзакцій]");
+        }
+        else
         {
             Console.WriteLine($"Transactions ({block.Transactions.Count}):");
             foreach (var tx in block.Transactions)
@@ -57,17 +60,17 @@ public class DisplayService
         }
     }
 
-    public void SearchBlocksByData(BlockChain blockChain, string searchText)
+    public void SearchBlocksByTransactionText(BlockChain blockChain, string searchText)
     {
         Console.ForegroundColor = ConsoleColor.Yellow;
-        Console.WriteLine($"=== Blockchain Explorer: Пошук подій за текстом у Data: \"{searchText}\" ===");
+        Console.WriteLine($"=== Blockchain Explorer: Пошук блоків за текстом у транзакціях: \"{searchText}\" ===");
         Console.ResetColor();
 
-        var blocks = blockChain.SearchBlocksByData(searchText);
+        var blocks = blockChain.SearchBlocksByTransactionText(searchText);
         if (blocks.Count == 0)
         {
             Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"Подій із текстом \"{searchText}\" у полі Data не знайдено.");
+            Console.WriteLine($"Блоків із текстом \"{searchText}\" у транзакціях не знайдено.");
             Console.ResetColor();
             return;
         }

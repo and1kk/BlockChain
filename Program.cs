@@ -55,10 +55,9 @@ while (running)
     Console.WriteLine("14. Порівняти 4 режими майнінгу (CPU 1-потік / CPU потоки / GPU / GPU потоки)");
     Console.WriteLine("15. Асинхронний майнінг у фоні (програма залишається доступною)");
     Console.WriteLine("16. Змінити режим майнінгу (CPU / CPU Multi / GPU / GPU Multi)");
-    Console.WriteLine("17. [ДЗ #3] Власний Blockchain історії подій (5 блоків + Explorer + IsValid)");
-    Console.WriteLine("18. [ДЗ #3] Додати подію (блок із Data)");
-    Console.WriteLine("19. [ДЗ #3] Blockchain Explorer (пошук блоку за Index або текстом у Data)");
-    Console.WriteLine("20. [ДЗ #3] Перевірка безпеки IsValid() та тест зміни Data у 2-му блоці");
+    Console.WriteLine("17. [ДЗ #3] Власний Blockchain (5 блоків із транзакціями + Explorer + IsValid)");
+    Console.WriteLine("18. [ДЗ #3] Blockchain Explorer (пошук блоку за Index або текстом у транзакціях)");
+    Console.WriteLine("19. [ДЗ #3] Перевірка безпеки IsValid() та тест підробки блоку #2");
     Console.WriteLine("0. Вихід");
     Console.Write("Оберіть дію: ");
 
@@ -349,31 +348,30 @@ while (running)
         }
         case "17":
         {
-            // Рівень 1: Створення ланцюга з 5 блоками різних подій
-            var eventChain = new BlockChain(3);
-            eventChain.SetMiningMode(blockChainService.GetMiningMode());
+            var demoChain = new BlockChain(3);
+            demoChain.SetMiningMode(blockChainService.GetMiningMode());
 
-            string[] events =
+            var demoTransactions = new[]
             {
-                "Реєстрація користувача: Олександр (alex@example.com)",
-                "Поповнення балансу: Олександр +5000 UAH",
-                "Покупка товару: Ноутбук Lenovo ThinkPad (3200 UAH)",
-                "Переказ коштів: Олександр -> Марія (1200 UAH)",
-                "Налаштування безпеки: Активація 2FA для користувача Олександр"
+                transactionService.CreateTransaction("System", "Alex", 5000m),
+                transactionService.CreateTransaction("Alex", "Shop", 3200m),
+                transactionService.CreateTransaction("Alex", "Maria", 1200m),
+                transactionService.CreateTransaction("Maria", "Bob", 450m),
+                transactionService.CreateTransaction("Bob", "Alex", 150m)
             };
 
-            foreach (var ev in events)
+            foreach (var tx in demoTransactions)
             {
-                eventChain.AddEventBlock(ev);
+                demoChain.AddBlock(new List<Transactions> { tx });
             }
 
             if (!Console.IsOutputRedirected) Console.Clear();
             Console.ForegroundColor = ConsoleColor.Magenta;
             Console.WriteLine("===========================================================================");
-            Console.WriteLine("  ДЗ #3 — РІВЕНЬ 1: СТВОРЕННЯ ЛАНЦЮГА (5 БЛОКІВ ІЗ РІЗНИМИ ПОДІЯМИ)");
+            Console.WriteLine("  ДЗ #3 — РІВЕНЬ 1: СТВОРЕННЯ ЛАНЦЮГА (5 БЛОКІВ ІЗ ТРАНЗАКЦІЯМИ)");
             Console.WriteLine("===========================================================================");
             Console.ResetColor();
-            displayService.DisplayChain(eventChain);
+            displayService.DisplayChain(demoChain);
 
             if (!Console.IsInputRedirected)
             {
@@ -382,17 +380,14 @@ while (running)
                 if (!Console.IsOutputRedirected) Console.Clear();
             }
 
-            // Рівень 2: Blockchain Explorer
             Console.ForegroundColor = ConsoleColor.Magenta;
             Console.WriteLine("===========================================================================");
-            Console.WriteLine("  ДЗ #3 — РІВЕНЬ 2: BLOCKCHAIN EXPLORER (ПОШУК ЗА INDEX ТА DATA)");
+            Console.WriteLine("  ДЗ #3 — РІВЕНЬ 2: BLOCKCHAIN EXPLORER (ПОШУК ЗА INDEX ТА ТРАНЗАКЦІЯМИ)");
             Console.WriteLine("===========================================================================\n");
             Console.ResetColor();
-            displayService.SearchBlockByIndex(eventChain, 3);
+            displayService.SearchBlockByIndex(demoChain, 3);
             Console.WriteLine();
-            displayService.SearchBlocksByData(eventChain, "Переказ коштів");
-            Console.WriteLine();
-            displayService.SearchBlocksByData(eventChain, "Покупка");
+            displayService.SearchBlocksByTransactionText(demoChain, "Maria");
 
             if (!Console.IsInputRedirected)
             {
@@ -401,7 +396,6 @@ while (running)
                 if (!Console.IsOutputRedirected) Console.Clear();
             }
 
-            // Рівень 3: Перевірка безпеки IsValid() до і після зміни Data у 2-му блоці
             Console.ForegroundColor = ConsoleColor.Magenta;
             Console.WriteLine("===========================================================================");
             Console.WriteLine("  ДЗ #3 — РІВЕНЬ 3: ПЕРЕВІРКА БЕЗПЕКИ IsValid() ТА ПІДРОБКА БЛОКУ #2");
@@ -411,48 +405,27 @@ while (running)
             Console.ForegroundColor = ConsoleColor.Yellow;
             Console.WriteLine("1) Перевірка цілісності оригінального ланцюга (IsValid()):");
             Console.ResetColor();
-            eventChain.IsValid();
+            demoChain.IsValid();
 
+            var targetTx = demoChain.Chain[2].Transactions[0];
             Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine("\n2) Втручання у дані: змінюємо Data у другому блоці (Index = 2)...");
-            Console.WriteLine($"   Було:  {eventChain.Chain[2].Data}");
-            eventChain.Chain[2].Data = "Поповнення балансу: Олександр +999999 UAH [ПІДРОБКА]";
-            Console.WriteLine($"   Стало: {eventChain.Chain[2].Data}");
+            Console.WriteLine("\n2) Втручання у дані: змінюємо транзакцію у блоці #2...");
+            Console.WriteLine($"   Було:  {targetTx.From} -> {targetTx.To} ({targetTx.Amount})");
+            targetTx.Amount = 999999m;
+            Console.WriteLine($"   Стало: {targetTx.From} -> {targetTx.To} ({targetTx.Amount})");
             Console.ResetColor();
 
             Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine("\n3) Повторна перевірка цілісності після зміни Data (IsValid()):");
+            Console.WriteLine("\n3) Повторна перевірка цілісності після втручання (IsValid()):");
             Console.ResetColor();
-            eventChain.IsValid();
-
-            Console.WriteLine("\nСтан пошкодженого блоку #2:");
-            displayService.DisplayBlockDetails(eventChain.Chain[2]);
+            demoChain.IsValid();
             break;
         }
         case "18":
         {
-            Console.Write("Введіть опис події (Data) для нового блоку: ");
-            string? eventData = Console.ReadLine()?.Trim();
-            if (string.IsNullOrWhiteSpace(eventData))
-            {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine("[Помилка] Опис події не може бути порожнім.");
-                Console.ResetColor();
-                break;
-            }
-
-            var addedBlock = blockChainService.AddEventBlock(eventData);
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine($"Подію додано у блок #{addedBlock.Index}!");
-            Console.ResetColor();
-            displayService.DisplayBlockDetails(addedBlock);
-            break;
-        }
-        case "19":
-        {
             Console.WriteLine("=== Blockchain Explorer ===");
             Console.WriteLine("1. Пошук блоку за Index");
-            Console.WriteLine("2. Пошук подій за текстом у Data");
+            Console.WriteLine("2. Пошук блоків за текстом у транзакціях");
             Console.Write("Оберіть режим пошуку (1 або 2): ");
             string? explorerChoice = Console.ReadLine()?.Trim();
 
@@ -472,11 +445,11 @@ while (running)
             }
             else if (explorerChoice == "2")
             {
-                Console.Write("Введіть текст для пошуку в Data: ");
+                Console.Write("Введіть текст для пошуку в транзакціях: ");
                 string? query = Console.ReadLine()?.Trim();
                 if (!string.IsNullOrWhiteSpace(query))
                 {
-                    displayService.SearchBlocksByData(blockChainService, query);
+                    displayService.SearchBlocksByTransactionText(blockChainService, query);
                 }
                 else
                 {
@@ -493,22 +466,33 @@ while (running)
             }
             break;
         }
-        case "20":
+        case "19":
         {
             Console.WriteLine("Перевірка поточного ланцюга методом IsValid():");
             blockChainService.IsValid();
 
             if (blockChainService.Chain.Count > 2)
             {
-                Console.Write("Змінити Data у блоці #2 для перевірки безпеки? (y/n): ");
+                Console.Write("Змінити транзакцію у блоці #2 для перевірки безпеки? (y/n): ");
                 string? ans = Console.ReadLine()?.Trim().ToLowerInvariant();
                 if (ans == "y" || ans == "yes" || ans == "так" || ans == "д")
                 {
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine($"[Злом] Старе Data блоку #2: {blockChainService.Chain[2].Data}");
-                    blockChainService.Chain[2].Data = "ПІДРОБЛЕНІ ДАНІ У БЛОЦІ #2";
-                    Console.WriteLine($"[Злом] Нове Data блоку #2:  {blockChainService.Chain[2].Data}");
-                    Console.ResetColor();
+                    if (blockChainService.Chain[2].Transactions.Count > 0)
+                    {
+                        var tx = blockChainService.Chain[2].Transactions[0];
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine($"[Злом] Стара сума у блоці #2: {tx.Amount}");
+                        tx.Amount = 999999m;
+                        Console.WriteLine($"[Злом] Нова сума у блоці #2:  {tx.Amount}");
+                        Console.ResetColor();
+                    }
+                    else
+                    {
+                        blockChainService.Chain[2].Transactions.Add(new Transactions("Hacker", "Hacker", 999999m));
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine("[Злом] У блок #2 додано підроблену транзакцію.");
+                        Console.ResetColor();
+                    }
                     blockChainService.IsValid();
                 }
             }

@@ -52,7 +52,6 @@ public class BlockChain
         var genesisBlock = new Block
         {
             Index = 0,
-            Data = "Genesis Block — Ініціалізація блокчейну подій",
             Transactions = new List<Transactions>(),
             PrevHash = "0",
             // TimeStamp = DateTime.Parse("2023-06-01"),
@@ -66,39 +65,21 @@ public class BlockChain
         Chain.Add(genesisBlock);
     }
 
-    public Block AddEventBlock(string data)
-    {
-        var lastBlock = Chain[Chain.Count - 1];
-        var newBlock = new Block
-        {
-            Index = lastBlock.Index + 1,
-            Data = data,
-            Transactions = new List<Transactions>(),
-            PrevHash = lastBlock.Hash,
-            TimeStamp = DateTime.Now,
-            Nonce = 0,
-            DifficultyAtMining = Difficulty
-        };
-        newBlock.Hash = _hashingService.ComputeBlockHash(newBlock);
-        _miningService.MineBlock(newBlock, Difficulty);
-        Chain.Add(newBlock);
-        AdjustDifficulty();
-        return newBlock;
-    }
-
     public Block? FindBlockByIndex(int index)
     {
         return Chain.FirstOrDefault(b => b.Index == index);
     }
 
-    public List<Block> SearchBlocksByData(string searchText)
+    public List<Block> SearchBlocksByTransactionText(string searchText)
     {
         if (string.IsNullOrWhiteSpace(searchText))
             return new List<Block>();
 
         return Chain
-            .Where(b => !string.IsNullOrEmpty(b.Data) &&
-                        b.Data.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+            .Where(b => b.Transactions.Any(tx =>
+                tx.From.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                tx.To.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                tx.Amount.ToString().Contains(searchText, StringComparison.OrdinalIgnoreCase)))
             .ToList();
     }
 

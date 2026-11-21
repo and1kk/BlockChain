@@ -3,7 +3,6 @@ namespace BlockChainP33;
 public class Block
 {
     public int Index { get; set; }
-    public string Data { get; set; } = string.Empty;
     public List<Models.Transactions> Transactions { get; set; } = new List<Models.Transactions>();
     public string PrevHash { get; set; } = string.Empty;
     public string PreviousHash
