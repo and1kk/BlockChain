@@ -52,8 +52,9 @@ public class BlockChain
         var genesisBlock = new Block
         {
             Index = 0,
+            Data = "Genesis Block — Ініціалізація блокчейну подій",
             Transactions = new List<Transactions>(),
-            PrevHash = "andrey",
+            PrevHash = "0",
             // TimeStamp = DateTime.Parse("2023-06-01"),
             TimeStamp = DateTime.Now,
             Nonce = 0,
@@ -63,6 +64,42 @@ public class BlockChain
         // _miningService.MineBlock(genesisBlock, TargetPrefix);
         _miningService.MineBlock(genesisBlock, Difficulty);
         Chain.Add(genesisBlock);
+    }
+
+    public Block AddEventBlock(string data)
+    {
+        var lastBlock = Chain[Chain.Count - 1];
+        var newBlock = new Block
+        {
+            Index = lastBlock.Index + 1,
+            Data = data,
+            Transactions = new List<Transactions>(),
+            PrevHash = lastBlock.Hash,
+            TimeStamp = DateTime.Now,
+            Nonce = 0,
+            DifficultyAtMining = Difficulty
+        };
+        newBlock.Hash = _hashingService.ComputeBlockHash(newBlock);
+        _miningService.MineBlock(newBlock, Difficulty);
+        Chain.Add(newBlock);
+        AdjustDifficulty();
+        return newBlock;
+    }
+
+    public Block? FindBlockByIndex(int index)
+    {
+        return Chain.FirstOrDefault(b => b.Index == index);
+    }
+
+    public List<Block> SearchBlocksByData(string searchText)
+    {
+        if (string.IsNullOrWhiteSpace(searchText))
+            return new List<Block>();
+
+        return Chain
+            .Where(b => !string.IsNullOrEmpty(b.Data) &&
+                        b.Data.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+            .ToList();
     }
 
     public void AddBlock(List<Transactions>? transactions = null)
@@ -286,6 +323,58 @@ public List<Block> SearchTransactionsBySender(string name)
         }
 
         return matchingBlocks;
+    }
+
+    public bool IsValid(out int firstInvalidBlockIndex, out string errorReason)
+    {
+        for (int i = 0; i < Chain.Count; i++)
+        {
+            var currentBlock = Chain[i];
+
+            // 1. Перевірка правильності Hash поточного блоку
+            string recalculatedHash = _hashingService.ComputeBlockHash(currentBlock);
+            if (currentBlock.Hash != recalculatedHash)
+            {
+                firstInvalidBlockIndex = currentBlock.Index;
+                errorReason = $"Неправильний Hash у блоці #{currentBlock.Index} (збережений: {currentBlock.Hash}, перерахований: {recalculatedHash})";
+                return false;
+            }
+
+            // 2. Перевірка зв'язку через PreviousHash (для всіх блоків після Genesis)
+            if (i > 0)
+            {
+                var previousBlock = Chain[i - 1];
+                if (currentBlock.PreviousHash != previousBlock.Hash)
+                {
+                    firstInvalidBlockIndex = currentBlock.Index;
+                    errorReason = $"Порушений зв'язок PreviousHash у блоці #{currentBlock.Index} (вказує на: {currentBlock.PreviousHash}, а Hash блоку #{previousBlock.Index}: {previousBlock.Hash})";
+                    return false;
+                }
+            }
+        }
+
+        firstInvalidBlockIndex = -1;
+        errorReason = string.Empty;
+        return true;
+    }
+
+    public bool IsValid()
+    {
+        bool valid = IsValid(out int invalidIndex, out string reason);
+        if (valid)
+        {
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine("[IsValid] Blockchain валідний! Усі Hash та зв'язки PreviousHash коректні.");
+            Console.ResetColor();
+        }
+        else
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"[IsValid] УВАГА! Blockchain пошкоджений! Перший неправильний блок: #{invalidIndex}");
+            Console.WriteLine($"[IsValid] Причина: {reason}");
+            Console.ResetColor();
+        }
+        return valid;
     }
 
     public bool IsChainValid()

@@ -2,30 +2,82 @@ namespace BlockChainP33;
 
 public class DisplayService
 {
+    public void DisplayBlockDetails(Block block)
+    {
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.WriteLine($"--- Блок #{block.Index} ---");
+        Console.ResetColor();
+        Console.WriteLine($"Index:        {block.Index}");
+        Console.WriteLine($"Data:         {(string.IsNullOrEmpty(block.Data) ? "[Немає текстової події]" : block.Data)}");
+        Console.WriteLine($"Timestamp:    {block.Timestamp:yyyy-MM-dd HH:mm:ss}");
+        Console.WriteLine($"PreviousHash: {block.PreviousHash}");
+        Console.WriteLine($"Hash:         {block.Hash}");
+        Console.WriteLine($"Nonce: {block.Nonce} | Difficulty: {block.DifficultyAtMining} | Duration: {block.MiningDuration:F4} с | Attempts: {block.Attempts}");
+        if (block.Transactions.Count > 0)
+        {
+            Console.WriteLine($"Transactions ({block.Transactions.Count}):");
+            foreach (var tx in block.Transactions)
+            {
+                Console.WriteLine($"  -> [ID: {tx.Id}] Від кого: {tx.From} | Скільки: {tx.Amount} | Кому: {tx.To} | Час: {tx.TimeStamp:HH:mm:ss}");
+            }
+        }
+        Console.WriteLine(new string('-', 75));
+    }
+
     public void DisplayChain(BlockChain blockChain)
     {
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.WriteLine($"=== ВЕСЬ ЛАНЦЮГ BLOCKCHAIN (Блоків: {blockChain.Chain.Count}) ===");
+        Console.ResetColor();
         foreach (var block in blockChain.Chain)
         {
-            Console.WriteLine($"Index: {block.Index}");
-            Console.WriteLine($"Hash: {block.Hash}");
-            Console.WriteLine($"PrevHash: {block.PrevHash}");
-            Console.WriteLine($"TimeStamp: {block.TimeStamp}");
-            Console.WriteLine($"Nonce: {block.Nonce}");
-            Console.WriteLine($"Difficulty: {block.DifficultyAtMining}");
-            Console.WriteLine($"Mining Duration: {block.MiningDuration} seconds");
-            if (block.Transactions.Count == 0)
-            {
-                Console.WriteLine("Transactions: [Genesis / Немає транзакцій]");
-            }
-            else
-            {
-                Console.WriteLine($"Transactions ({block.Transactions.Count}):");
-                foreach (var tx in block.Transactions)
-                {
-                    Console.WriteLine($"  -> [ID: {tx.Id}] Від кого: {tx.From} | Скільки: {tx.Amount} | Кому: {tx.To} | Час: {tx.TimeStamp:HH:mm:ss}");
-                }
-            }
-            Console.WriteLine(new string('-', 50));
+            DisplayBlockDetails(block);
+        }
+    }
+
+    public void SearchBlockByIndex(BlockChain blockChain, int index)
+    {
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.WriteLine($"=== Blockchain Explorer: Пошук блоку за Index = {index} ===");
+        Console.ResetColor();
+
+        var block = blockChain.FindBlockByIndex(index);
+        if (block != null)
+        {
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine($"[Знайдено блок #{block.Index}] Усі властивості блоку:");
+            Console.ResetColor();
+            DisplayBlockDetails(block);
+        }
+        else
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"Блок із Index = {index} не знайдено.");
+            Console.ResetColor();
+        }
+    }
+
+    public void SearchBlocksByData(BlockChain blockChain, string searchText)
+    {
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.WriteLine($"=== Blockchain Explorer: Пошук подій за текстом у Data: \"{searchText}\" ===");
+        Console.ResetColor();
+
+        var blocks = blockChain.SearchBlocksByData(searchText);
+        if (blocks.Count == 0)
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"Подій із текстом \"{searchText}\" у полі Data не знайдено.");
+            Console.ResetColor();
+            return;
+        }
+
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine($"Знайдено блоків: {blocks.Count}");
+        Console.ResetColor();
+        foreach (var block in blocks)
+        {
+            DisplayBlockDetails(block);
         }
     }
 

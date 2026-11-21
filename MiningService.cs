@@ -102,7 +102,7 @@ public class MiningService
         Console.ResetColor();
 
         var stringTransactions = string.Concat(block.Transactions.Select(t => t.ToRawString()));
-        string prefixStr = $"{block.Index}{block.TimeStamp}{block.PrevHash}{stringTransactions}{block.DifficultyAtMining}";
+        string prefixStr = $"{block.Index}{block.TimeStamp}{block.PrevHash}{block.Data}{stringTransactions}{block.DifficultyAtMining}";
 
         using var sha256 = SHA256.Create();
         int winningNonce = 0;
@@ -151,7 +151,7 @@ public class MiningService
         Console.ResetColor();
 
         var stringTransactions = string.Concat(block.Transactions.Select(t => t.ToRawString()));
-        string prefixStr = $"{block.Index}{block.TimeStamp}{block.PrevHash}{stringTransactions}{block.DifficultyAtMining}";
+        string prefixStr = $"{block.Index}{block.TimeStamp}{block.PrevHash}{block.Data}{stringTransactions}{block.DifficultyAtMining}";
 
         int winningNonce = int.MaxValue;
         string winningHash = string.Empty;
@@ -228,7 +228,7 @@ public class MiningService
         Console.ResetColor();
 
         var stringTransactions = string.Concat(block.Transactions.Select(t => t.ToRawString()));
-        string prefixStr = $"{block.Index}{block.TimeStamp}{block.PrevHash}{stringTransactions}{block.DifficultyAtMining}";
+        string prefixStr = $"{block.Index}{block.TimeStamp}{block.PrevHash}{block.Data}{stringTransactions}{block.DifficultyAtMining}";
         byte[] prefixBytes = Encoding.UTF8.GetBytes(prefixStr);
 
         using var gpuPrefix = _gpuAccelerator.Allocate1D(prefixBytes);
@@ -283,7 +283,7 @@ public class MiningService
         Console.ResetColor();
 
         var stringTransactions = string.Concat(block.Transactions.Select(t => t.ToRawString()));
-        string prefixStr = $"{block.Index}{block.TimeStamp}{block.PrevHash}{stringTransactions}{block.DifficultyAtMining}";
+        string prefixStr = $"{block.Index}{block.TimeStamp}{block.PrevHash}{block.Data}{stringTransactions}{block.DifficultyAtMining}";
         byte[] prefixBytes = Encoding.UTF8.GetBytes(prefixStr);
 
         using var gpuPrefix = _gpuAccelerator.Allocate1D(prefixBytes);

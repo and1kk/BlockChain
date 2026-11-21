@@ -55,6 +55,10 @@ while (running)
     Console.WriteLine("14. Порівняти 4 режими майнінгу (CPU 1-потік / CPU потоки / GPU / GPU потоки)");
     Console.WriteLine("15. Асинхронний майнінг у фоні (програма залишається доступною)");
     Console.WriteLine("16. Змінити режим майнінгу (CPU / CPU Multi / GPU / GPU Multi)");
+    Console.WriteLine("17. [ДЗ #3] Власний Blockchain історії подій (5 блоків + Explorer + IsValid)");
+    Console.WriteLine("18. [ДЗ #3] Додати подію (блок із Data)");
+    Console.WriteLine("19. [ДЗ #3] Blockchain Explorer (пошук блоку за Index або текстом у Data)");
+    Console.WriteLine("20. [ДЗ #3] Перевірка безпеки IsValid() та тест зміни Data у 2-му блоці");
     Console.WriteLine("0. Вихід");
     Console.Write("Оберіть дію: ");
 
@@ -340,6 +344,177 @@ while (running)
             else
             {
                 Console.WriteLine("Невірний вибір режиму.");
+            }
+            break;
+        }
+        case "17":
+        {
+            // Рівень 1: Створення ланцюга з 5 блоками різних подій
+            var eventChain = new BlockChain(3);
+            eventChain.SetMiningMode(blockChainService.GetMiningMode());
+
+            string[] events =
+            {
+                "Реєстрація користувача: Олександр (alex@example.com)",
+                "Поповнення балансу: Олександр +5000 UAH",
+                "Покупка товару: Ноутбук Lenovo ThinkPad (3200 UAH)",
+                "Переказ коштів: Олександр -> Марія (1200 UAH)",
+                "Налаштування безпеки: Активація 2FA для користувача Олександр"
+            };
+
+            foreach (var ev in events)
+            {
+                eventChain.AddEventBlock(ev);
+            }
+
+            if (!Console.IsOutputRedirected) Console.Clear();
+            Console.ForegroundColor = ConsoleColor.Magenta;
+            Console.WriteLine("===========================================================================");
+            Console.WriteLine("  ДЗ #3 — РІВЕНЬ 1: СТВОРЕННЯ ЛАНЦЮГА (5 БЛОКІВ ІЗ РІЗНИМИ ПОДІЯМИ)");
+            Console.WriteLine("===========================================================================");
+            Console.ResetColor();
+            displayService.DisplayChain(eventChain);
+
+            if (!Console.IsInputRedirected)
+            {
+                Console.Write("\nНатисніть Enter для переходу до Рівня 2 (Blockchain Explorer)...");
+                Console.ReadLine();
+                if (!Console.IsOutputRedirected) Console.Clear();
+            }
+
+            // Рівень 2: Blockchain Explorer
+            Console.ForegroundColor = ConsoleColor.Magenta;
+            Console.WriteLine("===========================================================================");
+            Console.WriteLine("  ДЗ #3 — РІВЕНЬ 2: BLOCKCHAIN EXPLORER (ПОШУК ЗА INDEX ТА DATA)");
+            Console.WriteLine("===========================================================================\n");
+            Console.ResetColor();
+            displayService.SearchBlockByIndex(eventChain, 3);
+            Console.WriteLine();
+            displayService.SearchBlocksByData(eventChain, "Переказ коштів");
+            Console.WriteLine();
+            displayService.SearchBlocksByData(eventChain, "Покупка");
+
+            if (!Console.IsInputRedirected)
+            {
+                Console.Write("\nНатисніть Enter для переходу до Рівня 3 (Перевірка безпеки IsValid)...");
+                Console.ReadLine();
+                if (!Console.IsOutputRedirected) Console.Clear();
+            }
+
+            // Рівень 3: Перевірка безпеки IsValid() до і після зміни Data у 2-му блоці
+            Console.ForegroundColor = ConsoleColor.Magenta;
+            Console.WriteLine("===========================================================================");
+            Console.WriteLine("  ДЗ #3 — РІВЕНЬ 3: ПЕРЕВІРКА БЕЗПЕКИ IsValid() ТА ПІДРОБКА БЛОКУ #2");
+            Console.WriteLine("===========================================================================\n");
+            Console.ResetColor();
+
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine("1) Перевірка цілісності оригінального ланцюга (IsValid()):");
+            Console.ResetColor();
+            eventChain.IsValid();
+
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine("\n2) Втручання у дані: змінюємо Data у другому блоці (Index = 2)...");
+            Console.WriteLine($"   Було:  {eventChain.Chain[2].Data}");
+            eventChain.Chain[2].Data = "Поповнення балансу: Олександр +999999 UAH [ПІДРОБКА]";
+            Console.WriteLine($"   Стало: {eventChain.Chain[2].Data}");
+            Console.ResetColor();
+
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine("\n3) Повторна перевірка цілісності після зміни Data (IsValid()):");
+            Console.ResetColor();
+            eventChain.IsValid();
+
+            Console.WriteLine("\nСтан пошкодженого блоку #2:");
+            displayService.DisplayBlockDetails(eventChain.Chain[2]);
+            break;
+        }
+        case "18":
+        {
+            Console.Write("Введіть опис події (Data) для нового блоку: ");
+            string? eventData = Console.ReadLine()?.Trim();
+            if (string.IsNullOrWhiteSpace(eventData))
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("[Помилка] Опис події не може бути порожнім.");
+                Console.ResetColor();
+                break;
+            }
+
+            var addedBlock = blockChainService.AddEventBlock(eventData);
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine($"Подію додано у блок #{addedBlock.Index}!");
+            Console.ResetColor();
+            displayService.DisplayBlockDetails(addedBlock);
+            break;
+        }
+        case "19":
+        {
+            Console.WriteLine("=== Blockchain Explorer ===");
+            Console.WriteLine("1. Пошук блоку за Index");
+            Console.WriteLine("2. Пошук подій за текстом у Data");
+            Console.Write("Оберіть режим пошуку (1 або 2): ");
+            string? explorerChoice = Console.ReadLine()?.Trim();
+
+            if (explorerChoice == "1")
+            {
+                Console.Write("Введіть Index блоку: ");
+                if (int.TryParse(Console.ReadLine()?.Trim(), out int idx))
+                {
+                    displayService.SearchBlockByIndex(blockChainService, idx);
+                }
+                else
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine("[Помилка] Невірний формат Index.");
+                    Console.ResetColor();
+                }
+            }
+            else if (explorerChoice == "2")
+            {
+                Console.Write("Введіть текст для пошуку в Data: ");
+                string? query = Console.ReadLine()?.Trim();
+                if (!string.IsNullOrWhiteSpace(query))
+                {
+                    displayService.SearchBlocksByData(blockChainService, query);
+                }
+                else
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine("[Помилка] Текст пошуку не може бути порожнім.");
+                    Console.ResetColor();
+                }
+            }
+            else
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("[Помилка] Невірний вибір.");
+                Console.ResetColor();
+            }
+            break;
+        }
+        case "20":
+        {
+            Console.WriteLine("Перевірка поточного ланцюга методом IsValid():");
+            blockChainService.IsValid();
+
+            if (blockChainService.Chain.Count > 2)
+            {
+                Console.Write("Змінити Data у блоці #2 для перевірки безпеки? (y/n): ");
+                string? ans = Console.ReadLine()?.Trim().ToLowerInvariant();
+                if (ans == "y" || ans == "yes" || ans == "так" || ans == "д")
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine($"[Злом] Старе Data блоку #2: {blockChainService.Chain[2].Data}");
+                    blockChainService.Chain[2].Data = "ПІДРОБЛЕНІ ДАНІ У БЛОЦІ #2";
+                    Console.WriteLine($"[Злом] Нове Data блоку #2:  {blockChainService.Chain[2].Data}");
+                    Console.ResetColor();
+                    blockChainService.IsValid();
+                }
+            }
+            else
+            {
+                Console.WriteLine("Для тесту зміни 2-го блоку додайте хоча б 2 блоки.");
             }
             break;
         }
