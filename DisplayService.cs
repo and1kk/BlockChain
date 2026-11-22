@@ -1,3 +1,5 @@
+using WalletApp;
+
 namespace BlockChainP33;
 
 public class DisplayService
@@ -240,6 +242,66 @@ public class DisplayService
             Console.WriteLine($"  Транзакцій для '{name}' не знайдено.");
         }
         Console.WriteLine(new string('-', 50));
+    }
+
+    public void PrintTransactionHistory(BlockChain blockchain, Wallet wallet, List<Models.Transactions>? pendingTransactions = null)
+    {
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.WriteLine($"=== Історія транзакцій гаманця {wallet.Name} ({wallet.Address}) ===");
+        Console.ResetColor();
+
+        Console.WriteLine("\n--- Підтверджені (у блокчейні) ---");
+        bool anyConfirmed = false;
+        foreach (var block in blockchain.Chain)
+        {
+            foreach (var tx in block.Transactions)
+            {
+                bool isSender = tx.From.Equals(wallet.Address, StringComparison.OrdinalIgnoreCase);
+                bool isReceiver = tx.To.Equals(wallet.Address, StringComparison.OrdinalIgnoreCase);
+                if (!isSender && !isReceiver) continue;
+
+                anyConfirmed = true;
+                string type = tx.isCoinbase
+                    ? "[Coinbase +]"
+                    : (isReceiver && !isSender ? "[Вхідна +]" : "[Вихідна -]");
+
+                Console.ForegroundColor = isReceiver && !isSender ? ConsoleColor.Green : ConsoleColor.Red;
+                Console.WriteLine($"  Блок #{block.Index} | ID #{tx.Id} | {type} {tx.Amount:F2} | {tx.From} -> {tx.To} | {tx.TimeStamp:HH:mm:ss}");
+                Console.ResetColor();
+            }
+        }
+        if (!anyConfirmed)
+        {
+            Console.WriteLine("  Немає підтверджених транзакцій.");
+        }
+
+        if (pendingTransactions != null)
+        {
+            Console.WriteLine("\n--- В очікуванні (ще не замайнені) ---");
+            bool anyPending = false;
+            foreach (var tx in pendingTransactions)
+            {
+                bool isSender = tx.From.Equals(wallet.Address, StringComparison.OrdinalIgnoreCase);
+                bool isReceiver = tx.To.Equals(wallet.Address, StringComparison.OrdinalIgnoreCase);
+                if (!isSender && !isReceiver) continue;
+
+                anyPending = true;
+                string type = isReceiver && !isSender ? "[Очікує +]" : "[Очікує -]";
+
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine($"  ID #{tx.Id} | {type} {tx.Amount:F2} | {tx.From} -> {tx.To} | {tx.TimeStamp:HH:mm:ss}");
+                Console.ResetColor();
+            }
+            if (!anyPending)
+            {
+                Console.WriteLine("  Немає транзакцій в очікуванні.");
+            }
+        }
+
+        decimal confirmed = blockchain.GetBalance(wallet.Address);
+        decimal available = blockchain.GetBalance(wallet.Address, pendingTransactions);
+        Console.WriteLine($"\nПідтверджений баланс: {confirmed:F2} | Доступний баланс: {available:F2}");
+        Console.WriteLine(new string('-', 65));
     }
 }
 

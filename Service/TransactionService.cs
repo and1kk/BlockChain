@@ -7,7 +7,7 @@ namespace Service
     public class TransactionService
     {
         private readonly WalletService _walletService = new WalletService();
-
+        private readonly BalanceService _balanceService = new BalanceService();
         public Transactions CreateTransaction(string from, string to, decimal amount, Wallet wallet)
         {
             var tx = new Transactions(from, to, amount, wallet.PublicKey);
@@ -21,9 +21,37 @@ namespace Service
 
             return tx;
         }
+        public (bool isValid, string errorMessage) ValidateBalance(Transactions transaction, List<Transactions> allTransactions, List<Transactions>? pendingTransactions = null)
+        {
+            if (transaction.isCoinbase)
+            {
+                return (true, string.Empty);
+            }
+
+            if (!_balanceService.HasSufficientBalance(transaction.From, transaction.Amount, allTransactions, pendingTransactions))
+            {
+                decimal currentBalance = _balanceService.GetBalance(transaction.From, allTransactions, pendingTransactions);
+                return (false, $"Insufficient balance for {transaction.From} (available balance: {currentBalance}, required: {transaction.Amount}).");
+            }
+
+            return ValidateTransaction(transaction);
+        }
 
         public (bool isValid, string errorMessage) ValidateTransaction(Transactions transaction)
         {
+            if (transaction.isCoinbase)
+            {
+                if (string.IsNullOrWhiteSpace(transaction.To))
+                {
+                    return (false, "Miner recipient address is required for coinbase transaction.");
+                }
+                if (transaction.Amount <= 0)
+                {
+                    return (false, "Coinbase reward amount must be greater than zero.");
+                }
+                return (true, string.Empty);
+            }
+
             if (string.IsNullOrWhiteSpace(transaction.From))
             {
                 return (false, "Sender address is required.");

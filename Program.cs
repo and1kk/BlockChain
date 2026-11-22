@@ -7,7 +7,7 @@ var blockChainService = new BlockChain(4);
 var displayService = new DisplayService();
 var transactionService = new TransactionService();
 var walletService = new WalletService();
-
+var balanceService = new BalanceService();
 var bobWallet = walletService.CreateWallet("Bob");
 var aliceWallet = walletService.CreateWallet("Alice");
 var charlieWallet = walletService.CreateWallet("Charlie");
@@ -29,10 +29,7 @@ Wallet GetOrCreateWallet(string name)
     return wallet;
 }
 
-var tempListTransactions = new List<Transactions>
-{
-    transactionService.CreateTransaction(aliceWallet.Address, bobWallet.Address, 10, aliceWallet)
-};
+var tempListTransactions = new List<Transactions>();
 
 (string From, string To, decimal Amount)[] sampleTransfers =
 {
@@ -85,6 +82,8 @@ while (running)
     Console.WriteLine("21. [ДЗ #4] Запустити AuditBlockchain() для поточного ланцюга");
     Console.WriteLine("22. [Гаманці] Додати підписану транзакцію (Alice -> Bob, 10) та показати гаманці");
     Console.WriteLine("23. [ДЗ #5] Цифровий підпис ECDSA: повний приклад + підробка суми + підпис чужим гаманцем");
+    Console.WriteLine("24. Баланс гаманців");
+    Console.WriteLine("25. Вивести транзакції гаманця");
     Console.WriteLine("0. Вихід");
     Console.Write("Оберіть дію: ");
 
@@ -179,9 +178,17 @@ while (running)
         }
         case "8":
         {
+            Console.Write("Хто майнить блок (ім'я гаманця для нагороди +10, Enter = Alice): ");
+            string minerName = Console.ReadLine()?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(minerName))
+            {
+                minerName = "Alice";
+            }
+            var minerWallet = GetOrCreateWallet(minerName);
+
             if (tempListTransactions.Count > 0)
             {
-                Console.WriteLine($"Майнінг блоку ({tempListTransactions.Count} транзакцій):");
+                Console.WriteLine($"Майнінг блоку ({tempListTransactions.Count} транзакцій) | Майнер: {minerWallet.Name} ({minerWallet.Address}):");
                 foreach (var tx in tempListTransactions)
                 {
                     PrintTransactionInfo(tx);
@@ -189,11 +196,18 @@ while (running)
             }
             else
             {
-                Console.WriteLine("Майнінг блоку без транзакцій...");
+                Console.WriteLine($"Майнінг блоку без транзакцій (лише Coinbase-нагорода для {minerWallet.Name})...");
             }
 
-            blockChainService.AddBlock(tempListTransactions);
-            tempListTransactions.Clear();
+            int blocksBefore = blockChainService.Chain.Count;
+            blockChainService.AddBlock(tempListTransactions, minerWallet.Address);
+            if (blockChainService.Chain.Count > blocksBefore)
+            {
+                tempListTransactions.Clear();
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine($"[Нагорода] {minerWallet.Name} отримав(ла) +10. Поточний баланс: {blockChainService.GetBalance(minerWallet.Address):F2}");
+                Console.ResetColor();
+            }
             break;
         }
         case "9":
@@ -220,6 +234,20 @@ while (running)
                 var fromWallet = GetOrCreateWallet(fromName);
                 var toWallet = GetOrCreateWallet(toName);
                 var newTx = transactionService.CreateTransaction(fromWallet.Address, toWallet.Address, amount, fromWallet);
+
+                var (hasBalance, balanceError) = transactionService.ValidateBalance(
+                    newTx,
+                    blockChainService.GetAllTransactions(),
+                    tempListTransactions);
+
+                if (!hasBalance)
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine($"[Відхилено] {balanceError}");
+                    Console.ResetColor();
+                    break;
+                }
+
                 tempListTransactions.Add(newTx);
                 PrintTransactionInfo(newTx, "Нова підписана транзакція");
             }
@@ -630,11 +658,22 @@ while (running)
             }
 
             var signedTx = transactionService.CreateTransaction(aliceWallet.Address, bobWallet.Address, 10, aliceWallet);
-            tempListTransactions.Add(signedTx);
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine($"\n[OK] Додано підписану транзакцію: From {signedTx.From} To {signedTx.To} Amount {signedTx.Amount}");
-            Console.WriteLine($"     Signature: {Convert.ToHexString(signedTx.Signature)[..24]}...");
-            Console.ResetColor();
+            var (canSend, errMsg) = transactionService.ValidateBalance(signedTx, blockChainService.GetAllTransactions(), tempListTransactions);
+            if (!canSend)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"\n[Відхилено] {errMsg}");
+                Console.WriteLine("Підказка: спочатку замайніть блок (пункт 8) за Alice, щоб отримати +10 нагороди.");
+                Console.ResetColor();
+            }
+            else
+            {
+                tempListTransactions.Add(signedTx);
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine($"\n[OK] Додано підписану транзакцію: From {signedTx.From} To {signedTx.To} Amount {signedTx.Amount}");
+                Console.WriteLine($"     Signature: {Convert.ToHexString(signedTx.Signature)[..24]}...");
+                Console.ResetColor();
+            }
 
             if (!Console.IsInputRedirected)
             {
@@ -727,6 +766,53 @@ while (running)
             Console.WriteLine("5) Фінальний аудит блокчейну (AuditBlockchain()):");
             Console.ResetColor();
             sigChain.AuditBlockchain();
+            break;
+        }
+        case "24":
+        {
+            Console.WriteLine("=== Баланс гаманців ===");
+            foreach (var wallet in wallets.Values)
+            {
+                decimal confirmed = blockChainService.GetBalance(wallet.Address);
+                decimal available = blockChainService.GetBalance(wallet.Address, tempListTransactions);
+                Console.WriteLine($"  {wallet.Name,-10} | Address: {wallet.Address} | Підтверджено: {confirmed:F2} | Доступно: {available:F2}");
+            }
+
+            if (!Console.IsInputRedirected)
+            {
+                Console.Write("\nНатисніть Enter для повернення в меню...");
+                Console.ReadLine();
+            }
+            break;
+        }
+        case "25":
+        {
+            Console.Write("Введіть ім'я гаманця (напр. Alice / Bob / Charlie): ");
+            string walletName = Console.ReadLine()?.Trim() ?? string.Empty;
+
+            if (string.IsNullOrWhiteSpace(walletName))
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("[Помилка] Ім'я гаманця не може бути порожнім.");
+                Console.ResetColor();
+                break;
+            }
+
+            if (!wallets.TryGetValue(walletName, out var selectedWallet))
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"[Помилка] Гаманець '{walletName}' не знайдено. Доступні: {string.Join(", ", wallets.Keys)}");
+                Console.ResetColor();
+                break;
+            }
+
+            displayService.PrintTransactionHistory(blockChainService, selectedWallet, tempListTransactions);
+
+            if (!Console.IsInputRedirected)
+            {
+                Console.Write("\nНатисніть Enter для повернення в меню...");
+                Console.ReadLine();
+            }
             break;
         }
         case "0":

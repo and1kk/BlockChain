@@ -12,7 +12,9 @@ public class BlockChain
     private readonly MiningService _miningService;
     private readonly WalletService _walletService;
     private readonly TransactionService _transactionService;
+    private readonly BalanceService _balanceService;
     // public string TargetPrefix { get; set; } = "and";
+    private readonly decimal _miningReward = 10; // Нагорода за майнінг блоку
     public int Difficulty { get; set; } = 3;
     private void AdjustDifficulty()
     {
@@ -46,6 +48,7 @@ public class BlockChain
         _miningService = new MiningService();
         _transactionService = new TransactionService();
         _walletService = new WalletService();
+        _balanceService = new BalanceService();
         AddGenesisBlock();
     }
 
@@ -85,13 +88,29 @@ public class BlockChain
             .ToList();
     }
 
-    public void AddBlock(List<Transactions>? transactions = null)
+    public List<Transactions> GetAllTransactions()
+    {
+        return Chain.SelectMany(b => b.Transactions).ToList();
+    }
+
+    public decimal GetBalance(string address, List<Transactions>? pendingTransactions = null)
+    {
+        return _balanceService.GetBalance(address, GetAllTransactions(), pendingTransactions);
+    }
+
+    public void AddBlock(List<Transactions>? transactions = null, string? minerAddress = null, bool? checkBalance = null)
     {
         transactions ??= new List<Transactions>();
+        bool shouldCheckBalance = checkBalance ?? !string.IsNullOrWhiteSpace(minerAddress);
         var idsInNewBlock = new HashSet<int>();
+        var runningTransactions = shouldCheckBalance ? GetAllTransactions() : null;
+
         foreach (var tx in transactions)
         {
-            var (isValid, message) = _transactionService.ValidateTransaction(tx);
+            var (isValid, message) = shouldCheckBalance
+                ? _transactionService.ValidateBalance(tx, runningTransactions!)
+                : _transactionService.ValidateTransaction(tx);
+
             if (!isValid)
             {
                 Console.ForegroundColor = ConsoleColor.Red;
@@ -99,23 +118,31 @@ public class BlockChain
                 Console.ResetColor();
                 return;
             }
-            if(!idsInNewBlock.Add(tx.Id))
+            if (!idsInNewBlock.Add(tx.Id))
             {
                 Console.ForegroundColor = ConsoleColor.Red;
                 Console.WriteLine($"[Помилка] Дублювання ID транзакції у новому блоці: {tx.ToRawString()}");
                 Console.ResetColor();
                 return;
             }
-            if(FindTransactionById(tx.Id) != null)
+            if (FindTransactionById(tx.Id) != null)
             {
                 Console.ForegroundColor = ConsoleColor.Red;
                 Console.WriteLine($"[Помилка] Транзакція з таким ID вже існує у блокчейні: {tx.ToRawString()}");
                 Console.ResetColor();
                 return;
             }
+
+            runningTransactions?.Add(tx);
         }
+
         //надо же создать копию что бы не удалять транзакции из списка, который передали в метод
         var transactionsCopy = new List<Transactions>(transactions);
+        if (!string.IsNullOrWhiteSpace(minerAddress))
+        {
+            transactionsCopy.Add(Transactions.CreateCoinbaseTransaction(minerAddress, _miningReward));
+        }
+
         var lastBlock = Chain[Chain.Count - 1];
         var newBlock = new Block
         {
@@ -140,13 +167,19 @@ public class BlockChain
 
     public MiningMode GetMiningMode() => _miningService.CurrentMode;
 
-    public async Task<bool> AddBlockAsync(List<Transactions>? transactions = null, MiningMode? mode = null, CancellationToken cancellationToken = default)
+    public async Task<bool> AddBlockAsync(List<Transactions>? transactions = null, MiningMode? mode = null, CancellationToken cancellationToken = default, string? minerAddress = null, bool? checkBalance = null)
     {
         transactions ??= new List<Transactions>();
+        bool shouldCheckBalance = checkBalance ?? !string.IsNullOrWhiteSpace(minerAddress);
         var idsInNewBlock = new HashSet<int>();
+        var runningTransactions = shouldCheckBalance ? GetAllTransactions() : null;
+
         foreach (var tx in transactions)
         {
-            var (isValid, message) = _transactionService.ValidateTransaction(tx);
+            var (isValid, message) = shouldCheckBalance
+                ? _transactionService.ValidateBalance(tx, runningTransactions!)
+                : _transactionService.ValidateTransaction(tx);
+
             if (!isValid)
             {
                 Console.ForegroundColor = ConsoleColor.Red;
@@ -168,9 +201,16 @@ public class BlockChain
                 Console.ResetColor();
                 return false;
             }
+
+            runningTransactions?.Add(tx);
         }
 
         var transactionsCopy = new List<Transactions>(transactions);
+        if (!string.IsNullOrWhiteSpace(minerAddress))
+        {
+            transactionsCopy.Add(Transactions.CreateCoinbaseTransaction(minerAddress, _miningReward));
+        }
+
         var lastBlock = Chain[Chain.Count - 1];
         var newBlock = new Block
         {
