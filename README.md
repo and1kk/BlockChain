@@ -90,3 +90,13 @@
 
 ![Valid Blockchain Audit Report](04_dz/01_audit_valid_blockchain_report.png)
 ![Tampered Amount Audit Detection](04_dz/02_audit_tampered_amount_detected.png)
+
+---
+
+## ДЗ №5 — Цифровий підпис транзакцій ECDSA та захист від підробки (`05_dz/`)
+Детальний опис та скріншоти виконання див. у [05_dz/README.md](05_dz/README.md):
+- **Рівень 1 (Повний приклад та підробка суми):** валідна підписана транзакція `Alice -> Bob` приймається, а транзакція зі зміненою після підписання сумою (`50 -> 999999`) відхиляється (`Invalid signature.`).
+- **Рівень 2 (Підробка підпису чужим гаманцем):** спроба створити транзакцію з `From = alice.Address`, підписану чужим гаманцем `bob.Sign(...)`, відхиляється в обох сценаріях — як із `alice.PublicKey` (`Invalid signature.`), так і зі спробою підкласти `bob.PublicKey` (`Sender address ... does not match public key address ...`).
+
+![Level 1 - Valid Transaction and Tampered Amount Rejected](05_dz/01_level1_valid_and_tampered_amount.png)
+![Level 2 - Forged Signature with Bob Wallet Rejected](05_dz/02_level2_forged_signature_bob_wallet.png)

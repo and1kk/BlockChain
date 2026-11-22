@@ -1,14 +1,37 @@
 using BlockChainP33;
 using Models;
 using Service;
+using WalletApp;
 
 var blockChainService = new BlockChain(4);
 var displayService = new DisplayService();
 var transactionService = new TransactionService();
+var walletService = new WalletService();
+
+var bobWallet = walletService.CreateWallet("Bob");
+var aliceWallet = walletService.CreateWallet("Alice");
+var charlieWallet = walletService.CreateWallet("Charlie");
+
+var wallets = new Dictionary<string, Wallet>(StringComparer.OrdinalIgnoreCase)
+{
+    ["Bob"] = bobWallet,
+    ["Alice"] = aliceWallet,
+    ["Charlie"] = charlieWallet
+};
+
+Wallet GetOrCreateWallet(string name)
+{
+    if (!wallets.TryGetValue(name, out var wallet))
+    {
+        wallet = walletService.CreateWallet(name);
+        wallets[name] = wallet;
+    }
+    return wallet;
+}
 
 var tempListTransactions = new List<Transactions>
 {
-    new Transactions("Alex", "Bob", 100)
+    transactionService.CreateTransaction(aliceWallet.Address, bobWallet.Address, 10, aliceWallet)
 };
 
 (string From, string To, decimal Amount)[] sampleTransfers =
@@ -60,10 +83,12 @@ while (running)
     Console.WriteLine("19. [ДЗ #3] Перевірка безпеки IsValid() та тест підробки блоку #2");
     Console.WriteLine("20. [ДЗ #4] Blockchain Audit (повна перевірка + звіт + тест зміни Amount)");
     Console.WriteLine("21. [ДЗ #4] Запустити AuditBlockchain() для поточного ланцюга");
+    Console.WriteLine("22. [Гаманці] Додати підписану транзакцію (Alice -> Bob, 10) та показати гаманці");
+    Console.WriteLine("23. [ДЗ #5] Цифровий підпис ECDSA: повний приклад + підробка суми + підпис чужим гаманцем");
     Console.WriteLine("0. Вихід");
     Console.Write("Оберіть дію: ");
 
-    var choice = Console.ReadLine();
+    var choice = Console.ReadLine()?.Trim();
     Console.WriteLine();
 
     switch (choice)
@@ -72,7 +97,9 @@ while (running)
         {
             var sample = sampleTransfers[txCounter % sampleTransfers.Length];
             txCounter++;
-            var tx = transactionService.CreateTransaction(sample.From, sample.To, sample.Amount);
+            var fromWallet = GetOrCreateWallet(sample.From);
+            var toWallet = GetOrCreateWallet(sample.To);
+            var tx = transactionService.CreateTransaction(fromWallet.Address, toWallet.Address, sample.Amount, fromWallet);
             PrintTransactionInfo(tx, "Авто-транзакція");
             blockChainService.AddBlock(new List<Transactions> { tx });
             break;
@@ -83,7 +110,9 @@ while (running)
             {
                 var sample = sampleTransfers[txCounter % sampleTransfers.Length];
                 txCounter++;
-                var tx = transactionService.CreateTransaction(sample.From, sample.To, sample.Amount);
+                var fromWallet = GetOrCreateWallet(sample.From);
+                var toWallet = GetOrCreateWallet(sample.To);
+                var tx = transactionService.CreateTransaction(fromWallet.Address, toWallet.Address, sample.Amount, fromWallet);
                 PrintTransactionInfo(tx, $"Авто-транзакція #{i + 1}");
                 blockChainService.AddBlock(new List<Transactions> { tx });
             }
@@ -169,11 +198,11 @@ while (running)
         }
         case "9":
         {
-            Console.Write("Від кого: ");
-            string from = Console.ReadLine()?.Trim() ?? string.Empty;
+            Console.Write("Від кого (ім'я гаманця, напр. Alice / Bob / Charlie): ");
+            string fromName = Console.ReadLine()?.Trim() ?? string.Empty;
 
-            Console.Write("Кому: ");
-            string to = Console.ReadLine()?.Trim() ?? string.Empty;
+            Console.Write("Кому (ім'я гаманця, напр. Bob / Charlie / Alice): ");
+            string toName = Console.ReadLine()?.Trim() ?? string.Empty;
 
             Console.Write("Скільки: ");
             string? amountInput = Console.ReadLine();
@@ -186,19 +215,20 @@ while (running)
                 break;
             }
 
-            var newTx = transactionService.CreateTransaction(from, to, amount);
-            var (isValid, message) = transactionService.ValidateTransaction(newTx);
-
-            if (!isValid)
+            try
+            {
+                var fromWallet = GetOrCreateWallet(fromName);
+                var toWallet = GetOrCreateWallet(toName);
+                var newTx = transactionService.CreateTransaction(fromWallet.Address, toWallet.Address, amount, fromWallet);
+                tempListTransactions.Add(newTx);
+                PrintTransactionInfo(newTx, "Нова підписана транзакція");
+            }
+            catch (ArgumentException ex)
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"[Помилка] {message}");
+                Console.WriteLine($"[Помилка] {ex.Message}");
                 Console.ResetColor();
-                break;
             }
-
-            tempListTransactions.Add(newTx);
-            PrintTransactionInfo(newTx, "Нова транзакція");
             break;
         }
         case "10":
@@ -269,25 +299,26 @@ while (running)
             Console.WriteLine("--- Тест 1: 5 транзакцій, одна з неправильною сумою ---");
             var listWithInvalid = new List<Transactions>
             {
-                new Transactions("Alex", "Bob", 10),
-                new Transactions("Bob", "Charlie", 20),
-                new Transactions("Charlie", "Dave", 30),
-                new Transactions("Dave", "Eve", -50), // Невалідна сума!
-                new Transactions("Eve", "Frank", 40)
+                transactionService.CreateTransaction(aliceWallet.Address, bobWallet.Address, 10, aliceWallet),
+                transactionService.CreateTransaction(bobWallet.Address, charlieWallet.Address, 20, bobWallet),
+                transactionService.CreateTransaction(charlieWallet.Address, aliceWallet.Address, 30, charlieWallet),
+                new Transactions(aliceWallet.Address, bobWallet.Address, -50, aliceWallet.PublicKey), // Невалідна сума!
+                transactionService.CreateTransaction(bobWallet.Address, aliceWallet.Address, 40, bobWallet)
             };
             blockChainService.AddBlock(listWithInvalid);
             Console.WriteLine($"Кількість блоків після Тесту 1: {blockChainService.Chain.Count}\n");
 
             // Тест 2: Дублікат ID всередині одного нового блоку
             Console.WriteLine("--- Тест 2: Повторення ID всередині нового блоку ---");
-            var tx1 = new Transactions("Alex", "Bob", 10);
-            var tx2 = new Transactions("Bob", "Charlie", 20) { Id = tx1.Id }; // Такий самий ID!
+            var tx1 = transactionService.CreateTransaction(aliceWallet.Address, bobWallet.Address, 10, aliceWallet);
+            var tx2 = transactionService.CreateTransaction(bobWallet.Address, charlieWallet.Address, 20, bobWallet);
+            tx2.Id = tx1.Id; // Такий самий ID!
             blockChainService.AddBlock(new List<Transactions> { tx1, tx2 });
             Console.WriteLine($"Кількість блоків після Тесту 2: {blockChainService.Chain.Count}\n");
 
             // Тест 3: Транзакція з таким ID вже існує в Blockchain
             Console.WriteLine("--- Тест 3: Транзакція вже існує в Blockchain ---");
-            var existingTx = new Transactions("Alex", "Bob", 100);
+            var existingTx = transactionService.CreateTransaction(aliceWallet.Address, bobWallet.Address, 100, aliceWallet);
             blockChainService.AddBlock(new List<Transactions> { existingTx }); // Спочатку додаємо легально
             Console.WriteLine($"Кількість блоків після успішного додавання: {blockChainService.Chain.Count}");
 
@@ -353,13 +384,18 @@ while (running)
             var demoChain = new BlockChain(3);
             demoChain.SetMiningMode(blockChainService.GetMiningMode());
 
+            var systemWallet = GetOrCreateWallet("System");
+            var alexWallet = GetOrCreateWallet("Alex");
+            var shopWallet = GetOrCreateWallet("Shop");
+            var mariaWallet = GetOrCreateWallet("Maria");
+
             var demoTransactions = new[]
             {
-                transactionService.CreateTransaction("System", "Alex", 5000m),
-                transactionService.CreateTransaction("Alex", "Shop", 3200m),
-                transactionService.CreateTransaction("Alex", "Maria", 1200m),
-                transactionService.CreateTransaction("Maria", "Bob", 450m),
-                transactionService.CreateTransaction("Bob", "Alex", 150m)
+                transactionService.CreateTransaction(systemWallet.Address, alexWallet.Address, 5000m, systemWallet),
+                transactionService.CreateTransaction(alexWallet.Address, shopWallet.Address, 3200m, alexWallet),
+                transactionService.CreateTransaction(alexWallet.Address, mariaWallet.Address, 1200m, alexWallet),
+                transactionService.CreateTransaction(mariaWallet.Address, bobWallet.Address, 450m, mariaWallet),
+                transactionService.CreateTransaction(bobWallet.Address, alexWallet.Address, 150m, bobWallet)
             };
 
             foreach (var tx in demoTransactions)
@@ -389,7 +425,7 @@ while (running)
             Console.ResetColor();
             displayService.SearchBlockByIndex(demoChain, 3);
             Console.WriteLine();
-            displayService.SearchBlocksByTransactionText(demoChain, "Maria");
+            displayService.SearchBlocksByTransactionText(demoChain, mariaWallet.Address);
 
             if (!Console.IsInputRedirected)
             {
@@ -509,24 +545,29 @@ while (running)
             var auditChain = new BlockChain(3);
             auditChain.SetMiningMode(blockChainService.GetMiningMode());
 
+            var alexWallet = GetOrCreateWallet("Alex");
+            var shopWallet = GetOrCreateWallet("Shop");
+            var mariaWallet = GetOrCreateWallet("Maria");
+            var daveWallet = GetOrCreateWallet("Dave");
+
             var batch1 = new List<Transactions>
             {
-                transactionService.CreateTransaction("Alex", "Bob", 500m),
-                transactionService.CreateTransaction("Bob", "Maria", 200m)
+                transactionService.CreateTransaction(alexWallet.Address, bobWallet.Address, 500m, alexWallet),
+                transactionService.CreateTransaction(bobWallet.Address, mariaWallet.Address, 200m, bobWallet)
             };
             var batch2 = new List<Transactions>
             {
-                transactionService.CreateTransaction("Alex", "Shop", 1250m),
-                transactionService.CreateTransaction("Maria", "Alex", 300m)
+                transactionService.CreateTransaction(alexWallet.Address, shopWallet.Address, 1250m, alexWallet),
+                transactionService.CreateTransaction(mariaWallet.Address, alexWallet.Address, 300m, mariaWallet)
             };
             var batch3 = new List<Transactions>
             {
-                transactionService.CreateTransaction("Alex", "Charlie", 450m)
+                transactionService.CreateTransaction(alexWallet.Address, charlieWallet.Address, 450m, alexWallet)
             };
             var batch4 = new List<Transactions>
             {
-                transactionService.CreateTransaction("Charlie", "Dave", 150m),
-                transactionService.CreateTransaction("Alex", "Dave", 100m)
+                transactionService.CreateTransaction(charlieWallet.Address, daveWallet.Address, 150m, charlieWallet),
+                transactionService.CreateTransaction(alexWallet.Address, daveWallet.Address, 100m, alexWallet)
             };
 
             auditChain.AddBlock(batch1);
@@ -578,6 +619,114 @@ while (running)
         case "21":
         {
             blockChainService.AuditBlockchain();
+            break;
+        }
+        case "22":
+        {
+            Console.WriteLine("=== Створені гаманці ===");
+            foreach (var w in wallets.Values)
+            {
+                Console.WriteLine($"  {w.Name,-10} | Address: {w.Address} | PublicKey: {Convert.ToHexString(w.PublicKey)[..16]}...");
+            }
+
+            var signedTx = transactionService.CreateTransaction(aliceWallet.Address, bobWallet.Address, 10, aliceWallet);
+            tempListTransactions.Add(signedTx);
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine($"\n[OK] Додано підписану транзакцію: From {signedTx.From} To {signedTx.To} Amount {signedTx.Amount}");
+            Console.WriteLine($"     Signature: {Convert.ToHexString(signedTx.Signature)[..24]}...");
+            Console.ResetColor();
+
+            if (!Console.IsInputRedirected)
+            {
+                Console.Write("\nНатисніть Enter для повернення в меню...");
+                Console.ReadLine();
+            }
+            break;
+        }
+        case "23":
+        {
+            var sigChain = new BlockChain(3);
+            sigChain.SetMiningMode(blockChainService.GetMiningMode());
+
+            if (!Console.IsOutputRedirected) Console.Clear();
+            Console.ForegroundColor = ConsoleColor.Magenta;
+            Console.WriteLine("===========================================================================");
+            Console.WriteLine("  ДЗ #5 — РІВЕНЬ 1: ВАЛІДНА ПІДПИСАНА ТРАНЗАКЦІЯ ТА ПІДРОБКА СУМИ");
+            Console.WriteLine("===========================================================================\n");
+            Console.ResetColor();
+
+            Console.WriteLine("Створені гаманці:");
+            Console.WriteLine($"  Alice   | Address: {aliceWallet.Address} | PublicKey: {Convert.ToHexString(aliceWallet.PublicKey)[..20]}...");
+            Console.WriteLine($"  Bob     | Address: {bobWallet.Address} | PublicKey: {Convert.ToHexString(bobWallet.PublicKey)[..20]}...");
+            Console.WriteLine($"  Charlie | Address: {charlieWallet.Address} | PublicKey: {Convert.ToHexString(charlieWallet.PublicKey)[..20]}...\n");
+
+            // 1. Валідна транзакція Alice -> Bob (10)
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine("1) Валідна транзакція: Alice -> Bob (Amount = 10), підпис alice.Sign(...)");
+            Console.ResetColor();
+            var validTx = transactionService.CreateTransaction(aliceWallet.Address, bobWallet.Address, 10m, aliceWallet);
+            int countBefore = sigChain.Chain.Count;
+            sigChain.AddBlock(new List<Transactions> { validTx });
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine($"   [OK] Блоків до: {countBefore} -> після: {sigChain.Chain.Count} (транзакцію прийнято!)\n");
+            Console.ResetColor();
+
+            // 2. Підробка суми після підписання
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine("2) Підробка №1 (зміна суми): Alice підписує 50, зловмисник змінює Amount на 999999");
+            Console.ResetColor();
+            var tamperedAmountTx = transactionService.CreateTransaction(aliceWallet.Address, bobWallet.Address, 50m, aliceWallet);
+            Console.WriteLine($"   Підписана сума: {tamperedAmountTx.Amount}");
+            tamperedAmountTx.Amount = 999999m;
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"   Підмінена сума: {tamperedAmountTx.Amount}");
+            Console.ResetColor();
+            countBefore = sigChain.Chain.Count;
+            sigChain.AddBlock(new List<Transactions> { tamperedAmountTx });
+            Console.WriteLine($"   Блоків до: {countBefore} -> після: {sigChain.Chain.Count} (підробку відхилено!)\n");
+
+            if (!Console.IsInputRedirected)
+            {
+                Console.Write("Натисніть Enter для переходу до Рівня 2 (підпис чужим гаманцем)...");
+                Console.ReadLine();
+                if (!Console.IsOutputRedirected) Console.Clear();
+            }
+
+            Console.ForegroundColor = ConsoleColor.Magenta;
+            Console.WriteLine("===========================================================================");
+            Console.WriteLine("  ДЗ #5 — РІВЕНЬ 2: ПІДРОБКА ПІДПИСУ ЧУЖИМ ГАМАНЦЕМ (bob.Sign для Alice)");
+            Console.WriteLine("===========================================================================\n");
+            Console.ResetColor();
+
+            // 3. Рівень 2А: From = alice.Address, PublicKey = alice.PublicKey, але підпис bob.Sign(...)
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine("3) Атака 2А: From = alice.Address, PublicKey = alice.PublicKey, підпис = bob.Sign(...)");
+            Console.ResetColor();
+            var forgedTxA = new Transactions(aliceWallet.Address, bobWallet.Address, 100m, aliceWallet.PublicKey);
+            forgedTxA.Signature = bobWallet.Sign(forgedTxA.GetDataToSign());
+            Console.WriteLine($"   Транзакція: From={forgedTxA.From} -> To={forgedTxA.To} | Amount={forgedTxA.Amount}");
+            Console.WriteLine($"   Підписано гаманцем: Bob (Signature: {Convert.ToHexString(forgedTxA.Signature)[..24]}...)");
+            countBefore = sigChain.Chain.Count;
+            sigChain.AddBlock(new List<Transactions> { forgedTxA });
+            Console.WriteLine($"   Блоків до: {countBefore} -> після: {sigChain.Chain.Count} (блокчейн відхилив чужий підпис!)\n");
+
+            // 4. Рівень 2Б: From = alice.Address, PublicKey = bob.PublicKey, підпис = bob.Sign(...)
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine("4) Атака 2Б (хитра): From = alice.Address, але Боб підставляє СВІЙ bob.PublicKey + bob.Sign(...)");
+            Console.ResetColor();
+            var forgedTxB = new Transactions(aliceWallet.Address, bobWallet.Address, 250m, bobWallet.PublicKey);
+            forgedTxB.Signature = bobWallet.Sign(forgedTxB.GetDataToSign());
+            Console.WriteLine($"   Транзакція: From={forgedTxB.From} (Alice) -> To={forgedTxB.To} (Bob) | Amount={forgedTxB.Amount}");
+            Console.WriteLine($"   Підкладено PublicKey: Bob (адреса з ключа: {walletService.GetAddress(forgedTxB.PublicKey)})");
+            Console.WriteLine($"   Підписано гаманцем:   Bob (Signature: {Convert.ToHexString(forgedTxB.Signature)[..24]}...)");
+            countBefore = sigChain.Chain.Count;
+            sigChain.AddBlock(new List<Transactions> { forgedTxB });
+            Console.WriteLine($"   Блоків до: {countBefore} -> після: {sigChain.Chain.Count} (блокчейн помітив невідповідність From і PublicKey!)\n");
+
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine("5) Фінальний аудит блокчейну (AuditBlockchain()):");
+            Console.ResetColor();
+            sigChain.AuditBlockchain();
             break;
         }
         case "0":

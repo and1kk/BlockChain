@@ -10,6 +10,7 @@ public class BlockChain
     public readonly int _adjustmentInterval = 3; // Кількість блоків для корекції складності
     private readonly HashingService _hashingService;
     private readonly MiningService _miningService;
+    private readonly WalletService _walletService;
     private readonly TransactionService _transactionService;
     // public string TargetPrefix { get; set; } = "and";
     public int Difficulty { get; set; } = 3;
@@ -44,6 +45,7 @@ public class BlockChain
         _hashingService = new HashingService();
         _miningService = new MiningService();
         _transactionService = new TransactionService();
+        _walletService = new WalletService();
         AddGenesisBlock();
     }
 
