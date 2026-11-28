@@ -84,6 +84,7 @@ while (running)
     Console.WriteLine("23. [ДЗ #5] Цифровий підпис ECDSA: повний приклад + підробка суми + підпис чужим гаманцем");
     Console.WriteLine("24. Баланс гаманців");
     Console.WriteLine("25. Вивести транзакції гаманця");
+    Console.WriteLine("26. [ДЗ #6] Халвінг винагороди майнера (GetCurrentReward() — зменшення вдвічі кожні 5 блоків)");
     Console.WriteLine("0. Вихід");
     Console.Write("Оберіть дію: ");
 
@@ -178,7 +179,8 @@ while (running)
         }
         case "8":
         {
-            Console.Write("Хто майнить блок (ім'я гаманця для нагороди +10, Enter = Alice): ");
+            decimal currentReward = blockChainService.GetCurrentReward();
+            Console.Write($"Хто майнить блок (ім'я гаманця для нагороди +{currentReward}, Enter = Alice): ");
             string minerName = Console.ReadLine()?.Trim() ?? string.Empty;
             if (string.IsNullOrWhiteSpace(minerName))
             {
@@ -188,7 +190,7 @@ while (running)
 
             if (tempListTransactions.Count > 0)
             {
-                Console.WriteLine($"Майнінг блоку ({tempListTransactions.Count} транзакцій) | Майнер: {minerWallet.Name} ({minerWallet.Address}):");
+                Console.WriteLine($"Майнінг блоку ({tempListTransactions.Count} транзакцій) | Майнер: {minerWallet.Name} ({minerWallet.Address}) | Поточна нагорода: {currentReward}:");
                 foreach (var tx in tempListTransactions)
                 {
                     PrintTransactionInfo(tx);
@@ -196,7 +198,7 @@ while (running)
             }
             else
             {
-                Console.WriteLine($"Майнінг блоку без транзакцій (лише Coinbase-нагорода для {minerWallet.Name})...");
+                Console.WriteLine($"Майнінг блоку без транзакцій (лише Coinbase-нагорода +{currentReward} для {minerWallet.Name})...");
             }
 
             int blocksBefore = blockChainService.Chain.Count;
@@ -205,7 +207,7 @@ while (running)
             {
                 tempListTransactions.Clear();
                 Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine($"[Нагорода] {minerWallet.Name} отримав(ла) +10. Поточний баланс: {blockChainService.GetBalance(minerWallet.Address):F2}");
+                Console.WriteLine($"[Нагорода] {minerWallet.Name} отримав(ла) +{currentReward}. Поточний баланс: {blockChainService.GetBalance(minerWallet.Address):F2} | Наступна нагорода: {blockChainService.GetCurrentReward()}");
                 Console.ResetColor();
             }
             break;
@@ -807,6 +809,80 @@ while (running)
             }
 
             displayService.PrintTransactionHistory(blockChainService, selectedWallet, tempListTransactions);
+
+            if (!Console.IsInputRedirected)
+            {
+                Console.Write("\nНатисніть Enter для повернення в меню...");
+                Console.ReadLine();
+            }
+            break;
+        }
+        case "26":
+        {
+            if (!Console.IsOutputRedirected) Console.Clear();
+            Console.ForegroundColor = ConsoleColor.Magenta;
+            Console.WriteLine("===========================================================================");
+            Console.WriteLine("  ДЗ #6 — ХАЛВІНГ ВИНАГОРОДИ МАЙНЕРА (HALVING КОЖНІ 5 БЛОКІВ)");
+            Console.WriteLine("===========================================================================\n");
+            Console.ResetColor();
+
+            var halvingChain = new BlockChain(2);
+            var minerWallet = walletService.CreateWallet("MinerAlice");
+
+            Console.WriteLine($"Майнер:            {minerWallet.Name} ({minerWallet.Address})");
+            Console.WriteLine($"Початкова нагорода: {halvingChain.GetCurrentReward()} монет");
+            Console.WriteLine($"Інтервал halving:   кожні {halvingChain._halvingInterval} блоків\n");
+
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine(" Блок | Епоха | GetCurrentReward() | Coinbase у блоці | Баланс майнера");
+            Console.WriteLine("------+-------+--------------------+------------------+----------------");
+            Console.ResetColor();
+
+            decimal previousReward = halvingChain.GetCurrentReward();
+            int blocksToMine = 16;
+
+            for (int i = 1; i <= blocksToMine; i++)
+            {
+                decimal expectedReward = halvingChain.GetCurrentReward();
+                int epoch = (halvingChain.Chain.Count - 1) / halvingChain._halvingInterval;
+
+                if (i > 1 && expectedReward < previousReward)
+                {
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.WriteLine($"  >>> [HALVING #{epoch}] Нагорода зменшилась вдвічі: {previousReward} -> {expectedReward}");
+                    Console.ResetColor();
+                }
+
+                // Тимчасово перенаправляємо стандартний лог майнінгу, щоб таблиця була чистою та наочною
+                var originalOut = Console.Out;
+                using (var mutedOut = new StringWriter())
+                {
+                    Console.SetOut(mutedOut);
+                    halvingChain.AddBlock(new List<Transactions>(), minerWallet.Address);
+                    Console.SetOut(originalOut);
+                }
+
+                var minedBlock = halvingChain.Chain[^1];
+                var coinbaseTx = minedBlock.Transactions.FirstOrDefault(t => t.isCoinbase);
+                decimal actualReward = coinbaseTx?.Amount ?? 0m;
+                decimal balance = halvingChain.GetBalance(minerWallet.Address);
+
+                Console.WriteLine($" #{minedBlock.Index,-3} |   {epoch,-3} | {expectedReward,18:F2} | {actualReward,16:F2} | {balance,14:F2}");
+                previousReward = expectedReward;
+            }
+
+            Console.WriteLine("------+-------+--------------------+------------------+----------------");
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine($"\nПідсумок після {blocksToMine} замайнених блоків (усього в ланцюгу з Genesis: {halvingChain.Chain.Count}):");
+            Console.WriteLine($"  Блоки #1-#5   (Епоха 0): 5 x 10.00 = 50.00");
+            Console.WriteLine($"  Блоки #6-#10  (Епоха 1): 5 x  5.00 = 25.00");
+            Console.WriteLine($"  Блоки #11-#15 (Епоха 2): 5 x  2.50 = 12.50");
+            Console.WriteLine($"  Блок  #16     (Епоха 3): 1 x  1.25 =  1.25");
+            Console.WriteLine($"  Загальний баланс {minerWallet.Name}: {halvingChain.GetBalance(minerWallet.Address):F2}");
+            Console.WriteLine($"  Наступна нагорода GetCurrentReward() для блоку #{halvingChain.Chain.Count}: {halvingChain.GetCurrentReward():F2}\n");
+            Console.ResetColor();
+
+            halvingChain.AuditBlockchain();
 
             if (!Console.IsInputRedirected)
             {

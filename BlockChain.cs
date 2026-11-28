@@ -14,8 +14,27 @@ public class BlockChain
     private readonly TransactionService _transactionService;
     private readonly BalanceService _balanceService;
     // public string TargetPrefix { get; set; } = "and";
-    private readonly decimal _miningReward = 10; // Нагорода за майнінг блоку
+    private readonly decimal _miningReward = 10; // Початкова нагорода за майнінг блоку
+    public readonly int _halvingInterval = 5; // Кількість блоків для зменшення нагороди вдвічі (halving)
     public int Difficulty { get; set; } = 3;
+
+    public decimal GetCurrentReward()
+    {
+        int minedBlocks = Math.Max(0, Chain.Count - 1);
+        int halvings = minedBlocks / _halvingInterval;
+        decimal reward = _miningReward;
+
+        for (int i = 0; i < halvings; i++)
+        {
+            reward /= 2m;
+            if (reward == 0m)
+            {
+                break;
+            }
+        }
+
+        return reward;
+    }
     private void AdjustDifficulty()
     {
         if (Chain.Count % _adjustmentInterval == 0 && Chain.Count > 0)
@@ -140,7 +159,8 @@ public class BlockChain
         var transactionsCopy = new List<Transactions>(transactions);
         if (!string.IsNullOrWhiteSpace(minerAddress))
         {
-            transactionsCopy.Add(Transactions.CreateCoinbaseTransaction(minerAddress, _miningReward));
+            decimal currentReward = GetCurrentReward();
+            transactionsCopy.Add(Transactions.CreateCoinbaseTransaction(minerAddress, currentReward));
         }
 
         var lastBlock = Chain[Chain.Count - 1];
@@ -208,7 +228,8 @@ public class BlockChain
         var transactionsCopy = new List<Transactions>(transactions);
         if (!string.IsNullOrWhiteSpace(minerAddress))
         {
-            transactionsCopy.Add(Transactions.CreateCoinbaseTransaction(minerAddress, _miningReward));
+            decimal currentReward = GetCurrentReward();
+            transactionsCopy.Add(Transactions.CreateCoinbaseTransaction(minerAddress, currentReward));
         }
 
         var lastBlock = Chain[Chain.Count - 1];

@@ -100,3 +100,13 @@
 
 ![Level 1 - Valid Transaction and Tampered Amount Rejected](05_dz/01_level1_valid_and_tampered_amount.png)
 ![Level 2 - Forged Signature with Bob Wallet Rejected](05_dz/02_level2_forged_signature_bob_wallet.png)
+
+---
+
+## ДЗ №6 — Халвінг винагороди майнера (`06_dz/`)
+Детальний опис та скріншот виконання див. у [06_dz/README.md](06_dz/README.md):
+- Реалізовано механізм **halving** (`_halvingInterval = 5`): винагорода майнеру зменшується вдвічі кожні 5 замайнених блоків (`10 -> 5 -> 2.5 -> 1.25`).
+- Додано метод **`GetCurrentReward()`** у `BlockChain`, який використовується під час створення Coinbase-транзакції в `AddBlock()` та `AddBlockAsync()`.
+- Додано демонстрацію у пункті меню **`26`** із таблицею по 16 блоках, перевіркою балансу майнера (`88.75`) та фінальним `AuditBlockchain()`.
+
+![Halving Miner Reward Demo](06_dz/01_halving_miner_reward_demo.png)
